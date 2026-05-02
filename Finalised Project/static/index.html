@@ -44,14 +44,14 @@ h1{font-size:clamp(28px,5vw,48px);font-weight:700;color:var(--text);letter-spaci
 .search{background:var(--card);border:1px solid var(--border);padding:24px;display:flex;gap:12px;align-items:flex-end}
 .ig{flex:1;display:flex;flex-direction:column;gap:8px}
 label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.1em}
-input{background:transparent;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;padding:14px 16px;outline:none;transition:border-color .2s;width:100%}
+input{background:transparent;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;padding:0 16px;height:54px;box-sizing:border-box;outline:none;transition:border-color .2s;width:100%}
 input:focus{border-color:var(--accent)}
-.btn{background:transparent;border:1px solid var(--text);color:var(--text);cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;padding:14px 32px;white-space:nowrap;transition:background-color .2s, color .2s;letter-spacing:0.1em}
+.btn{background:var(--card);color:var(--text);border:1px solid var(--border);padding:0 24px;height:54px;box-sizing:border-box;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.1em;transition:all 0.2s;display:flex;align-items:center;justify-content:center;white-space:nowrap}
 .btn:hover{background:var(--text);color:var(--bg)}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 
 .err{background:var(--bg);border:1px solid var(--down);color:var(--down);font-family:'JetBrains Mono',monospace;font-size:13px;padding:14px 16px;display:none;font-weight:500}
-.spin{display:none;text-align:center;padding:36px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.1em}
+.spin{opacity:0;pointer-events:none;text-align:center;padding:36px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.1em;transition:opacity 0.3s ease}
 .si{display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);animation:rot .8s linear infinite;margin-bottom:12px}
 @keyframes rot{to{transform:rotate(360deg)}}
 
@@ -114,7 +114,15 @@ input:focus{border-color:var(--accent)}
 .mtag.active{border-color:var(--text);color:var(--text)}
 
 footer{margin-top:48px;font-size:10px;color:var(--muted);text-align:center;line-height:1.8;font-family:'JetBrains Mono',monospace}
-@media(max-width:520px){.search{flex-direction:column}.btn{width:100%}.trow{flex-direction:column;align-items:flex-start}.dchip{margin-left:0}.split-boxes{flex-direction:column}}
+@media(max-width:600px){
+  .search{flex-direction:column;align-items:stretch}
+  .ig{width:100%}
+  .btn{width:100%;margin-top:8px}
+  .trow{flex-direction:column;align-items:flex-start;gap:12px}
+  .dchip{margin-left:0}
+  .split-boxes{flex-direction:column}
+  .pcard, .rcard{min-width:100%;flex:none}
+}
 </style>
 </head>
 <body class="loading">
@@ -137,13 +145,17 @@ footer{margin-top:48px;font-size:10px;color:var(--muted);text-align:center;line-
   <div class="search">
     <div class="ig">
       <label for="ti">STOCK TICKER</label>
-      <input id="ti" type="text" value="SPY" placeholder="E.G. AAPL, SPY, TSLA, ^GSPC" autocomplete="off" spellcheck="false"/>
+      <input id="ti" type="text" value="^GSPC" placeholder="E.G. AAPL, SPY, TSLA, ^GSPC" autocomplete="off" spellcheck="false"/>
     </div>
     <div class="ig" style="flex:0.5;">
-      <label for="td">TARGET DATE (OPTIONAL)</label>
-      <input id="td" type="date" placeholder="YYYY-MM-DD" autocomplete="off" style="color-scheme: dark;"/>
+      <label for="td">TARGET DATE</label>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" style="width:54px; padding:0; flex-shrink:0; font-size:16px;" onclick="shiftDate(-1)">←</button>
+        <input id="td" type="date" placeholder="YYYY-MM-DD" autocomplete="off" min="2016-01-01" style="color-scheme: dark; flex:1; font-size:16px; text-align:center; letter-spacing:0.05em;"/>
+        <button class="btn" style="width:54px; padding:0; flex-shrink:0; font-size:16px;" onclick="shiftDate(1)">→</button>
+      </div>
     </div>
-    <button class="btn" id="ab" onclick="run()">ANALYZE ↵</button>
+    <button class="btn" id="ab" style="width: 160px; flex-shrink: 0;" onclick="run()">ANALYZE ↵</button>
   </div>
 
   <div class="err" id="eb"></div>
@@ -259,17 +271,89 @@ modelTags.forEach(tag => {
   });
 });
 
+function shiftDate(offset) {
+  const td = document.getElementById('td');
+  if (!td.value) {
+    const today = new Date();
+    const offsetMs = today.getTimezoneOffset() * 60000;
+    td.value = (new Date(today - offsetMs)).toISOString().split('T')[0];
+    if (offset === 0) return;
+  }
+  
+  const [y, m, d] = td.value.split('-');
+  const current = new Date(y, m - 1, d);
+  current.setDate(current.getDate() + offset);
+  
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  
+  if (current > today) {
+    showErr("TARGET DATE CANNOT BE IN THE FUTURE.");
+    return;
+  }
+  
+  const minDate = new Date(2016, 0, 1);
+  if (current < minDate) {
+    showErr("TARGET DATE MUST BE 2016 OR LATER.");
+    return;
+  }
+  
+  const yy = current.getFullYear();
+  const mm = String(current.getMonth() + 1).padStart(2, '0');
+  const dd = String(current.getDate()).padStart(2, '0');
+  td.value = `${yy}-${mm}-${dd}`;
+  
+  if (document.getElementById('ti').value.trim()) {
+    run();
+  }
+}
+
 async function run() {
   const t = document.getElementById('ti').value.trim().toUpperCase();
   const d = document.getElementById('td') ? document.getElementById('td').value.trim() : "";
-  if (!t) return;
+  
+  if (!t) {
+    showErr("PLEASE ENTER A VALID STOCK TICKER.");
+    return;
+  }
+  
+  if (!d) {
+    showErr("PLEASE SELECT A TARGET DATE.");
+    return;
+  }
+  
+  const target = new Date(d);
+    const minDate = new Date("2016-01-01");
+    const today = new Date();
+    
+    if (isNaN(target.getTime())) {
+      showErr("INVALID DATE FORMAT.");
+      return;
+    }
+    if (target > today) {
+      showErr("TARGET DATE CANNOT BE IN THE FUTURE.");
+      return;
+    }
+    if (target < minDate) {
+      showErr("TARGET DATE MUST BE 2016 OR LATER.");
+      return;
+    }
   
   // UX logic
   show('eb',false); 
-  show('rs',false,'flex'); 
-  show('rs',false); 
-  show('sp',true);
-  document.getElementById('ab').disabled = true;
+  const rsEl = document.getElementById('rs');
+  const ab = document.getElementById('ab');
+  
+  if (rsEl.style.display === 'flex') {
+    rsEl.style.opacity = '0.3';
+    rsEl.style.pointerEvents = 'none';
+    rsEl.style.transition = 'opacity 0.2s ease';
+  } else {
+    show('sp',true);
+  }
+  
+  ab.disabled = true;
+  ab.innerHTML = '...';
 
   try {
     const payload = { ticker: t, model: currentModelId };
@@ -374,8 +458,13 @@ async function run() {
   } catch(e) {
     showErr(e.message);
   } finally {
+    const rsEl = document.getElementById('rs');
+    rsEl.style.opacity = '1';
+    rsEl.style.pointerEvents = 'auto';
     show('sp',false);
-    document.getElementById('ab').disabled = false;
+    const ab = document.getElementById('ab');
+    ab.disabled = false;
+    ab.innerHTML = 'ANALYZE ↵';
   }
 }
 

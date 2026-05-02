@@ -214,22 +214,26 @@ CACHE_TTL = 300
 def get_stock_data(ticker):
     now = time.time()
     if ticker in DATA_CACHE and now - DATA_CACHE[ticker]['time'] < CACHE_TTL:
-        return DATA_CACHE[ticker]['data']
-    raw = yf.download(ticker, period="3y", auto_adjust=True, progress=False)
+        if not DATA_CACHE[ticker]['data'].empty:
+            return DATA_CACHE[ticker]['data']
+    raw = yf.download(ticker, period="10y", auto_adjust=True, progress=False)
     if isinstance(raw.columns, pd.MultiIndex):
         raw.columns = raw.columns.get_level_values(0)
-    DATA_CACHE[ticker] = {'time': now, 'data': raw}
+    if not raw.empty:
+        DATA_CACHE[ticker] = {'time': now, 'data': raw}
     return raw
 
 def get_vix_data():
     ticker = "^VIX"
     now = time.time()
     if ticker in DATA_CACHE and now - DATA_CACHE[ticker]['time'] < CACHE_TTL:
-        return DATA_CACHE[ticker]['data']
-    vix_raw = yf.download(ticker, period="3y", auto_adjust=True, progress=False)
+        if not DATA_CACHE[ticker]['data'].empty:
+            return DATA_CACHE[ticker]['data']
+    vix_raw = yf.download(ticker, period="10y", auto_adjust=True, progress=False)
     if isinstance(vix_raw.columns, pd.MultiIndex):
         vix_raw.columns = vix_raw.columns.get_level_values(0)
-    DATA_CACHE[ticker] = {'time': now, 'data': vix_raw}
+    if not vix_raw.empty:
+        DATA_CACHE[ticker] = {'time': now, 'data': vix_raw}
     return vix_raw
 
 @app.route("/api/analyze", methods=["POST"])
