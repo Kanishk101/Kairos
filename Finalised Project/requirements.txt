@@ -1,0 +1,10 @@
+Flask
+Flask-Cors
+numpy
+pandas
+yfinance
+torch
+joblib
+gunicorn
+xgboost
+scikit-learn

@@ -1,0 +1,19 @@
+# Environments
+venv/
+env/
+.env
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# Note: We are explicitly NOT ignoring *.pth or *.pkl 
+# because the Kairos model weights are small (~250 KB) 
+# and should be committed to Git for easy server deployment.

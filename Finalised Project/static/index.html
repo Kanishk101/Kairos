@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Kairos — Market Trend Classifier</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000000;
+  --card:#050505;
+  --border:#222222;
+  --accent:#E8E3D9;
+  --text:#E8E3D9;
+  --muted:#666666;
+  --down:#9c3b3b;
+  --neutral:#8c8c8c;
+  --up:#4a7c59;
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px;text-transform:uppercase;letter-spacing:0.02em;overflow-x:hidden}
+body.loading{overflow:hidden}
+body.loading > *:not(#loader){opacity:0;transform:translateY(10px);transition:opacity 0.8s ease, transform 0.8s ease}
+body.loaded > *:not(#loader){opacity:1;transform:translateY(0);transition:opacity 0.8s ease, transform 0.8s ease}
+body.loaded #loader{opacity:0;visibility:hidden}
+#loader{position:fixed;top:0;left:0;width:100vw;height:100vh;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;transition:opacity 0.8s ease, visibility 0.8s ease}
+.loader-logo{width:100%;max-width:clamp(280px, 50vw, 480px);aspect-ratio:3/1;object-fit:cover;object-position:center;mix-blend-mode:lighten;user-select:none;pointer-events:none;animation:brutalFadeIn 2.2s cubic-bezier(0.1, 0.7, 0.1, 1) forwards}
+@keyframes brutalFadeIn {
+  0% { opacity:0; filter:contrast(1.2) blur(10px); transform:scale(0.98) }
+  40% { opacity:1; filter:contrast(1.1) blur(0px); transform:scale(1) }
+  100% { opacity:1; filter:contrast(1.1) blur(0px); transform:scale(1) }
+}
+header{text-align:center;margin-bottom:48px;display:flex;flex-direction:column;align-items:center}
+.hero-logo-container{display:flex;justify-content:center;margin-bottom:24px;width:100%;max-width:600px}
+.hero-logo{width:100%;max-width:clamp(280px, 50vw, 480px);aspect-ratio:3/1;object-fit:cover;object-position:center;mix-blend-mode:lighten;user-select:none;pointer-events:none;filter:contrast(1.1)}
+h1{font-size:clamp(28px,5vw,48px);font-weight:700;color:var(--text);letter-spacing:-0.05em;line-height:1.1;margin-bottom:8px}
+.sub{color:var(--muted);font-size:13px;font-family:'JetBrains Mono',monospace;letter-spacing:0.05em;margin-top:8px}
+.pills{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+.pill{font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;padding:6px 12px;border:1px solid var(--border);background:transparent;color:var(--muted);letter-spacing:0.1em}
+.wrap{width:100%;max-width:860px;display:flex;flex-direction:column;gap:18px}
+
+/* Search */
+.search{background:var(--card);border:1px solid var(--border);padding:24px;display:flex;gap:12px;align-items:flex-end}
+.ig{flex:1;display:flex;flex-direction:column;gap:8px}
+label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.1em}
+input{background:transparent;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;padding:14px 16px;outline:none;transition:border-color .2s;width:100%}
+input:focus{border-color:var(--accent)}
+.btn{background:transparent;border:1px solid var(--text);color:var(--text);cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;padding:14px 32px;white-space:nowrap;transition:background-color .2s, color .2s;letter-spacing:0.1em}
+.btn:hover{background:var(--text);color:var(--bg)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+.err{background:var(--bg);border:1px solid var(--down);color:var(--down);font-family:'JetBrains Mono',monospace;font-size:13px;padding:14px 16px;display:none;font-weight:500}
+.spin{display:none;text-align:center;padding:36px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.1em}
+.si{display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);animation:rot .8s linear infinite;margin-bottom:12px}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* Results */
+.res{display:none;flex-direction:column;gap:18px}
+.trow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;border:1px solid var(--border);padding:16px 24px;background:var(--card)}
+.ticker{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700}
+.pval{font-size:24px;font-weight:600;font-family:'JetBrains Mono',monospace}
+.pchg{font-size:13px;font-weight:500;font-family:'JetBrains Mono',monospace;margin-top:2px}
+.pos{color:var(--up)}.neg{color:var(--down)}
+.badge{font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;padding:6px 12px;border:1px solid}
+.blo{border-color:var(--up);color:var(--up)}
+.bhi{border-color:var(--neutral);color:var(--neutral)}
+.dchip{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-left:auto}
+
+/* Prediction Split */
+.split-boxes{display:flex;gap:16px;flex-wrap:wrap}
+.pcard{background:var(--card);border:1px solid var(--border);padding:24px;display:flex;flex-direction:column;gap:16px;flex:1;min-width:300px}
+.rcard{background:var(--card);border:1px solid var(--border);padding:24px;display:flex;flex-direction:column;justify-content:center;align-items:center;flex:0.6;min-width:250px;text-align:center}
+
+.prow{display:flex;align-items:center;gap:16px}
+.picon{font-size:32px;font-family:'JetBrains Mono',monospace;line-height:1}
+.ptitle{font-size:11px;color:var(--muted);letter-spacing:0.1em;margin-bottom:6px;font-family:'JetBrains Mono',monospace}
+.pclass{font-size:32px;font-weight:700;letter-spacing:-0.02em}
+.hnote{font-size:11px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace}
+.pgrid{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.pbar{display:flex;align-items:center;gap:12px}
+.plbl{width:64px;font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;text-align:right}
+.ptrack{flex:1;background:var(--bg);border:1px solid var(--border);height:12px;position:relative}
+.pfill{height:100%;transition:width .7s ease}
+.ppct{width:48px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);text-align:right}
+
+.ricon{font-size:42px;margin-bottom:12px;font-family:'JetBrains Mono',monospace;line-height:1}
+.rclass{font-size:28px;font-weight:700;letter-spacing:-0.02em;font-family:'JetBrains Mono',monospace}
+
+/* Stats */
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.sc{background:var(--card);border:1px solid var(--border);padding:16px}
+.st{font-size:10px;color:var(--muted);letter-spacing:0.1em;margin-bottom:8px;font-family:'JetBrains Mono',monospace}
+.sv{font-size:20px;font-weight:500;font-family:'JetBrains Mono',monospace}
+.ss{font-size:10px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace}
+
+/* Chart */
+.ccard{background:var(--card);border:1px solid var(--border);padding:20px}
+.ctit{font-size:11px;color:var(--muted);letter-spacing:0.1em;margin-bottom:16px;font-family:'JetBrains Mono',monospace}
+.cwrap{position:relative;height:240px}
+
+/* Features */
+.fcard{background:var(--card);border:1px solid var(--border);padding:20px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}
+.fi{background:transparent;border:1px solid var(--border);padding:12px}
+.fn{font-size:10px;color:var(--muted);margin-bottom:6px;font-family:'JetBrains Mono',monospace}
+.fv{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;color:var(--text)}
+
+/* Model stack info */
+.mcard{background:var(--card);border:1px solid var(--border);padding:20px}
+.mstack{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.mtag{font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;padding:6px 14px;border:1px solid var(--border);color:var(--muted);background:transparent;cursor:pointer;user-select:none;transition:all 0.2s}
+.mtag:hover{border-color:#555}
+.mtag.active{border-color:var(--text);color:var(--text)}
+
+footer{margin-top:48px;font-size:10px;color:var(--muted);text-align:center;line-height:1.8;font-family:'JetBrains Mono',monospace}
+@media(max-width:520px){.search{flex-direction:column}.btn{width:100%}.trow{flex-direction:column;align-items:flex-start}.dchip{margin-left:0}.split-boxes{flex-direction:column}}
+</style>
+</head>
+<body class="loading">
+<div id="loader"><img src="/static/logo.png" class="loader-logo" alt="KAIROS Loader"/></div>
+<header>
+  <div class="hero-logo-container">
+    <img src="/static/logo.png" class="hero-logo" alt="KAIROS"/>
+  </div>
+  <h1>MARKET TREND CLASSIFIER</h1>
+  <p class="sub">REGIME-AWARE · 1D-CNN + TRANSFORMER · ANCHORED WALK-FORWARD VALIDATION</p>
+  <div class="pills">
+    <span class="pill">[ BASE PRICE+TECH (7 FEATURES) ]</span>
+    <span class="pill">[ HORIZON = 5 DAYS ]</span>
+    <span class="pill">[ LOOKBACK = 60 DAYS ]</span>
+    <span class="pill">[ 3-CLASS: DOWN / NEUTRAL / UP ]</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="search">
+    <div class="ig">
+      <label for="ti">STOCK TICKER</label>
+      <input id="ti" type="text" value="SPY" placeholder="E.G. AAPL, SPY, TSLA, ^GSPC" autocomplete="off" spellcheck="false"/>
+    </div>
+    <div class="ig" style="flex:0.5;">
+      <label for="td">TARGET DATE (OPTIONAL)</label>
+      <input id="td" type="date" placeholder="YYYY-MM-DD" autocomplete="off" style="color-scheme: dark;"/>
+    </div>
+    <button class="btn" id="ab" onclick="run()">ANALYZE ↵</button>
+  </div>
+
+  <div class="err" id="eb"></div>
+  <div class="spin" id="sp"><div class="si"></div><br/>FETCHING MARKET DATA &amp; COMPUTING INFERENCE...</div>
+
+  <div class="res" id="rs">
+    <!-- Ticker row -->
+    <div class="trow">
+      <span class="ticker" id="rt"></span>
+      <div><div class="pval" id="rp"></div><div class="pchg" id="rc"></div></div>
+      <span class="badge" id="rr"></span>
+      <span class="dchip" id="rd"></span>
+    </div>
+
+    <!-- Prediction vs Reality Split -->
+    <div class="split-boxes">
+      <div class="pcard">
+        <div class="prow">
+          <div class="picon" id="pi"></div>
+          <div>
+            <div class="ptitle">MODEL OUTLOOK (PREDICTION)</div>
+            <div class="pclass" id="pc"></div>
+            <div class="hnote" id="mnote">USING FROZEN FEATURE GROUP: BASE PRICE+TECH (7)</div>
+          </div>
+        </div>
+        <div class="pgrid" id="pg"></div>
+      </div>
+
+      <div class="rcard">
+        <div class="ptitle">MARKET REALITY (ACTUAL)</div>
+        <div class="ricon" id="ri"></div>
+        <div class="rclass" id="rc_actual"></div>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="sgrid">
+      <div class="sc"><div class="st">RSI (14)</div><div class="sv" id="s0"></div><div class="ss">MOMENTUM</div></div>
+      <div class="sc"><div class="st">MACD</div><div class="sv" id="s1"></div><div class="ss">NORMALIZED</div></div>
+      <div class="sc"><div class="st">VOLATILITY</div><div class="sv" id="s2"></div><div class="ss">20D REALIZED</div></div>
+      <div class="sc"><div class="st">LOG RET</div><div class="sv" id="s3"></div><div class="ss">CLOSE (DAILY)</div></div>
+    </div>
+
+    <!-- Chart -->
+    <div class="ccard">
+      <div class="ctit">PRICE — LAST 90 DAYS <span style="float:right; color:#555; font-weight:600;">[ HISTORICAL CONTEXT: ACTUAL YAHOO FINANCE DATA ]</span></div>
+      <div class="cwrap"><canvas id="ch"></canvas></div>
+    </div>
+
+    <!-- 7 Features -->
+    <div class="fcard">
+      <div class="ctit">BASE PRICE+TECH (7) — FROZEN FEATURE SNAPSHOT</div>
+      <div class="fgrid" id="fg"></div>
+    </div>
+
+    <!-- Model stack -->
+    <div class="mcard">
+      <div class="ctit">LIVE MODEL COMPARISON STACK</div>
+      <div class="mstack">
+        <span class="mtag active" data-model="PROPOSED">[ ★ PROPOSED (CNN+ATTN) ]</span>
+        <span class="mtag" data-model="1D-CNN">[ 1D-CNN (NO ATTN) ]</span>
+        <span class="mtag" data-model="CNNPRED-2D">[ CNNPRED-2D (PAPER) ]</span>
+        <span class="mtag" data-model="LSTM">[ LSTM ]</span>
+        <span class="mtag" data-model="XGBOOST">[ XGBOOST ]</span>
+        <span class="mtag" data-model="DUMMY">[ DUMMY ]</span>
+        <span class="mtag" data-model="ENSEMBLE">[ ENSEMBLE (PROP+LSTM+XGB) ]</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  KAIROS V5.2 · REGIME-AWARE FINANCIAL TREND CLASSIFICATION · ACADEMIC PROJECT<br/>
+  ALL BASELINES LOADED. METRICS: MACRO F1 + MCC. NOT FINANCIAL ADVICE.
+</footer>
+
+<script>
+const PROXY = 'https://api.allorigins.win/get?url=';
+const COLORS = ['#9c3b3b','#8c8c8c','#4a7c59'];
+const ICONS  = ['▼','—','▲'];
+const LABELS = ['DOWN','NEUTRAL','UP'];
+let chart = null;
+let currentModelId = 'PROPOSED';
+
+// Intro animation logic
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    document.body.classList.replace('loading', 'loaded');
+  }, 1800);
+  
+  // Set max date constraint to today
+  const today = new Date();
+  // Adjust for timezone offset to get local YYYY-MM-DD
+  const offset = today.getTimezoneOffset() * 60000;
+  const localISOTime = (new Date(today - offset)).toISOString().split('T')[0];
+  document.getElementById('td').setAttribute('max', localISOTime);
+});
+
+// Input listeners
+document.getElementById('ti').addEventListener('keydown', e => { if(e.key==='Enter') run(); });
+
+// Model Stack Click Listeners
+const modelTags = document.querySelectorAll('.mtag');
+modelTags.forEach(tag => {
+  tag.addEventListener('click', (e) => {
+    modelTags.forEach(t => t.classList.remove('active'));
+    e.target.classList.add('active');
+    currentModelId = e.target.getAttribute('data-model');
+    // Re-run if a ticker is already filled
+    if (document.getElementById('ti').value.trim()) {
+      run();
+    }
+  });
+});
+
+async function run() {
+  const t = document.getElementById('ti').value.trim().toUpperCase();
+  const d = document.getElementById('td') ? document.getElementById('td').value.trim() : "";
+  if (!t) return;
+  
+  // UX logic
+  show('eb',false); 
+  show('rs',false,'flex'); 
+  show('rs',false); 
+  show('sp',true);
+  document.getElementById('ab').disabled = true;
+
+  try {
+    const payload = { ticker: t, model: currentModelId };
+    if (d) payload.date = d;
+
+    const resp = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!resp.ok) {
+      const err = await resp.json().catch(()=>({}));
+      throw new Error(err.error || 'SERVER ERROR OR NO DATA FOUND.');
+    }
+    const data = await resp.json();
+
+    // ── Render ──────────────────────────────────────────────────────────────
+    document.getElementById('rt').textContent = data.ticker;
+    document.getElementById('rp').textContent = '$' + data.current_price.toFixed(2);
+    
+    const rcEl = document.getElementById('rc');
+    rcEl.textContent = (data.price_change>=0?'+':'') + data.price_change.toFixed(2) + ' (' + (data.price_pct>=0?'+':'') + data.price_pct.toFixed(2) + '%)';
+    rcEl.className   = 'pchg ' + (data.price_change>=0?'pos':'neg');
+
+    const rrEl = document.getElementById('rr');
+    rrEl.textContent = data.regime;
+    rrEl.className   = 'badge ' + (data.regime.includes('HIGH')?'bhi':'blo');
+    document.getElementById('rd').textContent = 'AS OF ' + data.date;
+
+    // ── PREDICTION BOX ──
+    document.getElementById('mnote').textContent = `USING FROZEN FEATURE GROUP: BASE PRICE+TECH (7) · MODEL: ${data.model_id}`;
+    const pred = data.prediction.class;
+    document.getElementById('pi').textContent = ICONS[pred];
+    document.getElementById('pi').style.color = COLORS[pred];
+    const pcEl = document.getElementById('pc');
+    pcEl.textContent = LABELS[pred];
+    pcEl.style.color = COLORS[pred];
+
+    const probs = data.prediction.probs;
+    document.getElementById('pg').innerHTML = LABELS.map((lbl,i) => `
+      <div class="pbar">
+        <span class="plbl" style="color:${COLORS[i]}">${lbl}</span>
+        <div class="ptrack"><div class="pfill" style="width:${(probs[i]*100).toFixed(1)}%;background:${COLORS[i]}"></div></div>
+        <span class="ppct">${(probs[i]*100).toFixed(1)}%</span>
+      </div>`).join('');
+
+    // ── REALITY BOX ──
+    const reality = data.reality;
+    const rLabel = reality.label;
+    const rColor = reality.color;
+    
+    document.getElementById('rc_actual').textContent = rLabel;
+    document.getElementById('rc_actual').style.color = rColor;
+    
+    const riEl = document.getElementById('ri');
+    if (rLabel === 'UP') riEl.textContent = ICONS[2];
+    else if (rLabel === 'DOWN') riEl.textContent = ICONS[0];
+    else if (rLabel === 'NEUTRAL') riEl.textContent = ICONS[1];
+    else riEl.textContent = '⏱';
+    riEl.style.color = rColor;
+
+    // Stats
+    document.getElementById('s0').textContent = parseFloat(data.features['RSI (14)']).toFixed(1);
+    const macdVal = parseFloat(data.features['MACD (norm)']);
+    const s1 = document.getElementById('s1');
+    s1.textContent = (macdVal>=0?'+':'')+macdVal.toFixed(4);
+    s1.style.color = macdVal>=0?'var(--up)':'var(--down)';
+    document.getElementById('s2').textContent = (parseFloat(data.features['Rolling Vol (20d)'])*100).toFixed(2)+'%';
+    const lrVal = parseFloat(data.features['Log Ret (Close)']);
+    const s3 = document.getElementById('s3');
+    s3.textContent = (lrVal>=0?'+':'')+(lrVal*100).toFixed(3)+'%';
+    s3.style.color = lrVal>=0?'var(--up)':'var(--down)';
+
+    // Chart (last 90 days)
+    const d90 = data.chart.dates;
+    const c90 = data.chart.prices;
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById('ch').getContext('2d'), {
+      type:'line',
+      data:{labels:d90, datasets:[{
+        data:c90, borderColor:'#E8E3D9', borderWidth:2, pointRadius:0,
+        fill:false,
+        tension:0
+      }]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}, tooltip:{mode:'index',intersect:false, displayColors:false, backgroundColor:'#080808', titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'}, borderColor:'#333333', borderWidth:1}},
+        scales:{
+          x:{ticks:{maxTicksLimit:7,color:'#777777',font:{family:'JetBrains Mono',size:10}},grid:{color:'#1A1A1A'}},
+          y:{ticks:{color:'#777777',font:{family:'JetBrains Mono',size:10}},grid:{color:'#1A1A1A'}}
+        }
+      }
+    });
+
+    // Feature snapshot
+    document.getElementById('fg').innerHTML = Object.entries(data.features).map(([k,v])=>
+      `<div class="fi"><div class="fn">${k}</div><div class="fv">${v}</div></div>`
+    ).join('');
+
+    show('rs',true,'flex');
+  } catch(e) {
+    showErr(e.message);
+  } finally {
+    show('sp',false);
+    document.getElementById('ab').disabled = false;
+  }
+}
+
+function show(id,on,disp='block'){document.getElementById(id).style.display=on?disp:'none';}
+function showErr(msg){const el=document.getElementById('eb');el.textContent='[ ERROR ] '+msg;el.style.display='block';}
+</script>
+</body>
+</html>
